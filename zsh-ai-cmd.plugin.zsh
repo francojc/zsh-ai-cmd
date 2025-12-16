@@ -42,7 +42,14 @@ User: kill process on port 3000
 command lsof -ti:3000 | xargs kill -9
 </examples>'
 
-# Spinner frames (braille dots - clean animation)
+# Context template (variables expanded at call time)
+typeset -g _ZSH_AI_CMD_CONTEXT='<context>
+OS: $_ZSH_AI_CMD_OS
+Shell: ${SHELL:t}
+PWD: $PWD
+</context>'
+
+# Spinner frames (braille dots)
 typeset -ga _ZSH_AI_CMD_SPINNER=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
 
 # Main widget
@@ -52,12 +59,7 @@ _zsh_ai_cmd_suggest() {
   # Get text up to cursor
   local input=${BUFFER[1,CURSOR]}
 
-  local context="<context>
-OS: $_ZSH_AI_CMD_OS
-Shell: ${SHELL:t}
-PWD: $PWD
-</context>"
-
+  local context="${(e)_ZSH_AI_CMD_CONTEXT}"
   local prompt="${_ZSH_AI_CMD_PROMPT}"$'\n'"${context}"
 
   # JSON schema for structured output (guarantees single command string)
