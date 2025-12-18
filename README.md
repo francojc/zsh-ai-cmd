@@ -28,8 +28,6 @@ security add-generic-password -s 'anthropic-api-key' -a "$USER" -w 'sk-ant-...'
 3. Ghost text appears showing the command: `find large files → command find . -size +100M`
 4. Press `Tab` to accept, or keep typing to dismiss
 
-If the suggestion extends your input (you started typing a command), ghost text shows the completion inline. Otherwise, it shows the full suggestion with an arrow.
-
 ## Configuration
 
 ```sh
