@@ -40,9 +40,13 @@ _zsh_ai_cmd_show_ghost() {
       # Suggestion is completion of current buffer - show suffix
       POSTDISPLAY="${suggestion#$BUFFER}"
     else
-      # Suggestion is different - show with arrow
-      POSTDISPLAY=" → $suggestion"
+      # Suggestion is different - show with tab hint
+      POSTDISPLAY="  ⇥  ${suggestion}"
     fi
+    # Apply grey highlighting via region_highlight (like zsh-autosuggestions)
+    local start=$#BUFFER
+    local end=$(( start + $#POSTDISPLAY ))
+    region_highlight+=("$start $end fg=8")
     [[ $ZSH_AI_CMD_DEBUG == true ]] && print -- "show_ghost: POSTDISPLAY='$POSTDISPLAY'" >> $ZSH_AI_CMD_LOG
   else
     POSTDISPLAY=""
@@ -52,6 +56,8 @@ _zsh_ai_cmd_show_ghost() {
 _zsh_ai_cmd_clear_ghost() {
   POSTDISPLAY=""
   _ZSH_AI_CMD_SUGGESTION=""
+  # Remove our highlight (filter out any fg=8 entries we added)
+  region_highlight=("${(@)region_highlight:#*fg=8}")
 }
 
 _zsh_ai_cmd_update_ghost_on_edit() {
@@ -198,6 +204,11 @@ _zsh_ai_cmd_backward_delete_char() {
   _zsh_ai_cmd_update_ghost_on_edit
 }
 
+_zsh_ai_cmd_forward_char() {
+  _zsh_ai_cmd_clear_ghost
+  zle .forward-char
+}
+
 # ============================================================================
 # Line Lifecycle
 # ============================================================================
@@ -213,11 +224,13 @@ _zsh_ai_cmd_line_finish() {
 zle -N zle-line-finish _zsh_ai_cmd_line_finish
 zle -N self-insert _zsh_ai_cmd_self_insert
 zle -N backward-delete-char _zsh_ai_cmd_backward_delete_char
+zle -N _zsh_ai_cmd_forward_char
 zle -N _zsh_ai_cmd_suggest
 zle -N _zsh_ai_cmd_accept
 
 bindkey "$ZSH_AI_CMD_KEY" _zsh_ai_cmd_suggest
 bindkey '^I' _zsh_ai_cmd_accept
+bindkey '^[[C' _zsh_ai_cmd_forward_char  # Right arrow - clear ghost, move cursor
 
 # ============================================================================
 # API Key Management
