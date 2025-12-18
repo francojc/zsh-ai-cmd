@@ -3,6 +3,9 @@
 # Ctrl+Z to request suggestion, Tab to accept, keep typing to refine
 # External deps: curl, jq, security (macOS Keychain)
 
+# Prevent double-loading (creates nested widget wrappers)
+(( ${+functions[_zsh_ai_cmd_suggest]} )) && return
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -14,15 +17,9 @@ typeset -g ZSH_AI_CMD_MODEL=${ZSH_AI_CMD_MODEL:-'claude-haiku-4-5-20251001'}
 # Internal State
 # ============================================================================
 typeset -g _ZSH_AI_CMD_SUGGESTION=""
-typeset -g _ZSH_AI_CMD_ORIGINAL_BUFFER=""
 
-# Cache OS at load time
-typeset -g _ZSH_AI_CMD_OS
-if [[ $OSTYPE == darwin* ]]; then
-  _ZSH_AI_CMD_OS="macOS $(sw_vers -productVersion 2>/dev/null || print 'unknown')"
-else
-  _ZSH_AI_CMD_OS="Linux"
-fi
+# OS detection (lazy-loaded on first API call)
+typeset -g _ZSH_AI_CMD_OS=""
 
 # ============================================================================
 # System Prompt
@@ -102,7 +99,15 @@ _zsh_ai_cmd_show_ghost() {
 _zsh_ai_cmd_clear_ghost() {
   POSTDISPLAY=""
   _ZSH_AI_CMD_SUGGESTION=""
-  _ZSH_AI_CMD_ORIGINAL_BUFFER=""
+}
+
+_zsh_ai_cmd_update_ghost_on_edit() {
+  [[ -z $_ZSH_AI_CMD_SUGGESTION ]] && return
+  if [[ $_ZSH_AI_CMD_SUGGESTION == ${BUFFER}* ]]; then
+    _zsh_ai_cmd_show_ghost "$_ZSH_AI_CMD_SUGGESTION"
+  else
+    _zsh_ai_cmd_clear_ghost
+  fi
 }
 
 # ============================================================================
@@ -111,6 +116,15 @@ _zsh_ai_cmd_clear_ghost() {
 
 _zsh_ai_cmd_call_api() {
   local input=$1
+
+  # Lazy OS detection (avoids sw_vers on every shell startup)
+  if [[ -z $_ZSH_AI_CMD_OS ]]; then
+    if [[ $OSTYPE == darwin* ]]; then
+      _ZSH_AI_CMD_OS="macOS $(sw_vers -productVersion 2>/dev/null || print 'unknown')"
+    else
+      _ZSH_AI_CMD_OS="Linux"
+    fi
+  fi
 
   local context="${(e)_ZSH_AI_CMD_CONTEXT}"
   local prompt="${_ZSH_AI_CMD_PROMPT}"$'\n'"${context}"
@@ -174,9 +188,6 @@ _zsh_ai_cmd_suggest() {
     return 1
   }
 
-  # Save original buffer
-  _ZSH_AI_CMD_ORIGINAL_BUFFER=$BUFFER
-
   # Show spinner
   local spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
   local i=0
@@ -224,41 +235,19 @@ _zsh_ai_cmd_accept() {
   fi
 }
 
-# Wrapper for self-insert: typing clears ghost or refines
 _zsh_ai_cmd_self_insert() {
   zle .self-insert
-
-  # If we have a suggestion, update ghost based on new buffer
-  if [[ -n $_ZSH_AI_CMD_SUGGESTION ]]; then
-    if [[ $_ZSH_AI_CMD_SUGGESTION == ${BUFFER}* ]]; then
-      # User is typing toward the suggestion - update ghost
-      _zsh_ai_cmd_show_ghost "$_ZSH_AI_CMD_SUGGESTION"
-    else
-      # User diverged - clear ghost
-      _zsh_ai_cmd_clear_ghost
-    fi
-  fi
+  _zsh_ai_cmd_update_ghost_on_edit
 }
 
 _zsh_ai_cmd_backward_delete_char() {
   zle .backward-delete-char
-
-  if [[ -n $_ZSH_AI_CMD_SUGGESTION ]]; then
-    if [[ $_ZSH_AI_CMD_SUGGESTION == ${BUFFER}* ]]; then
-      _zsh_ai_cmd_show_ghost "$_ZSH_AI_CMD_SUGGESTION"
-    else
-      _zsh_ai_cmd_clear_ghost
-    fi
-  fi
+  _zsh_ai_cmd_update_ghost_on_edit
 }
 
 # ============================================================================
 # Line Lifecycle
 # ============================================================================
-
-_zsh_ai_cmd_line_init() {
-  _zsh_ai_cmd_clear_ghost
-}
 
 _zsh_ai_cmd_line_finish() {
   _zsh_ai_cmd_clear_ghost
@@ -268,7 +257,6 @@ _zsh_ai_cmd_line_finish() {
 # Widget Registration
 # ============================================================================
 
-zle -N zle-line-init _zsh_ai_cmd_line_init
 zle -N zle-line-finish _zsh_ai_cmd_line_finish
 zle -N self-insert _zsh_ai_cmd_self_insert
 zle -N backward-delete-char _zsh_ai_cmd_backward_delete_char
