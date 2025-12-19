@@ -15,11 +15,14 @@ git clone https://github.com/kylesnowschwartz/zsh-ai-cmd ~/.zsh-ai-cmd
 # Add to .zshrc
 source ~/.zsh-ai-cmd/zsh-ai-cmd.plugin.zsh
 
-# Set API key for your provider
-export ANTHROPIC_API_KEY='sk-ant-...'   # Anthropic (default)
-export OPENAI_API_KEY='sk-...'          # OpenAI
-export GEMINI_API_KEY='...'             # Google Gemini
-export DEEPSEEK_API_KEY='sk-...'        # DeepSeek
+# Choose your provider (default: anthropic)
+export ZSH_AI_CMD_PROVIDER='anthropic'  # or: openai, gemini, deepseek, ollama
+
+# Set API key for your chosen provider
+export ANTHROPIC_API_KEY='sk-ant-...'
+export OPENAI_API_KEY='sk-...'
+export GEMINI_API_KEY='...'
+export DEEPSEEK_API_KEY='sk-...'
 # Ollama needs no key (local)
 
 # Or use macOS Keychain
