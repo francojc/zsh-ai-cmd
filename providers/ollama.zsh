@@ -47,17 +47,7 @@ _zsh_ai_cmd_ollama_call() {
   fi
 
   # Extract command - structured output ensures valid JSON in .message.content
-  local content
-  content=$(print -r -- "$response" | command jq -re '.message.content // empty' 2>/dev/null)
-  [[ -z $content ]] && return 1
-
-  # Parse JSON - structured output should guarantee valid JSON
-  print -r -- "$content" | command jq -re '.command // empty' 2>/dev/null && return 0
-
-  # Fallback: extract with sed if JSON parsing fails (older Ollama versions)
-  local cmd
-  cmd=$(print -r -- "$content" | command sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' | head -1)
-  [[ -n $cmd ]] && { print -r -- "$cmd"; return 0; }
+  print -r -- "$response" | command jq -re '.message.content | fromjson | .command // empty' 2>/dev/null
 }
 
 _zsh_ai_cmd_ollama_key_error() {

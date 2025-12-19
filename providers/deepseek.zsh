@@ -46,17 +46,7 @@ Respond with valid JSON only. Format: {\"command\": \"your shell command here\"}
   fi
 
   # Extract command from response (OpenAI-compatible format)
-  local content
-  content=$(print -r -- "$response" | command jq -re '.choices[0].message.content // empty' 2>/dev/null)
-  [[ -z $content ]] && return 1
-
-  # Parse JSON
-  print -r -- "$content" | command jq -re '.command // empty' 2>/dev/null && return 0
-
-  # Fallback: extract with sed if JSON parsing fails
-  local cmd
-  cmd=$(print -r -- "$content" | command sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p' | head -1)
-  [[ -n $cmd ]] && { print -r -- "$cmd"; return 0; }
+  print -r -- "$response" | command jq -re '.choices[0].message.content | fromjson | .command // empty' 2>/dev/null
 }
 
 _zsh_ai_cmd_deepseek_key_error() {
