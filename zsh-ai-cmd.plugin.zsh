@@ -11,8 +11,14 @@
 # ============================================================================
 typeset -g ZSH_AI_CMD_KEY=${ZSH_AI_CMD_KEY:-'^z'}
 typeset -g ZSH_AI_CMD_DEBUG=${ZSH_AI_CMD_DEBUG:-false}
-typeset -g ZSH_AI_CMD_MODEL=${ZSH_AI_CMD_MODEL:-'claude-haiku-4-5-20251001'}
 typeset -g ZSH_AI_CMD_LOG=${ZSH_AI_CMD_LOG:-/tmp/zsh-ai-cmd.log}
+
+# Provider selection (anthropic, openai, ollama)
+typeset -g ZSH_AI_CMD_PROVIDER=${ZSH_AI_CMD_PROVIDER:-'anthropic'}
+
+# Legacy model variable maps to anthropic model for backwards compatibility
+typeset -g ZSH_AI_CMD_MODEL=${ZSH_AI_CMD_MODEL:-'claude-haiku-4-5-20251001'}
+typeset -g ZSH_AI_CMD_ANTHROPIC_MODEL=${ZSH_AI_CMD_ANTHROPIC_MODEL:-$ZSH_AI_CMD_MODEL}
 
 # ============================================================================
 # Internal State
@@ -23,9 +29,12 @@ typeset -g _ZSH_AI_CMD_SUGGESTION=""
 typeset -g _ZSH_AI_CMD_OS=""
 
 # ============================================================================
-# System Prompt (sourced from shared file)
+# System Prompt and Providers
 # ============================================================================
 source "${0:a:h}/prompt.zsh"
+source "${0:a:h}/providers/anthropic.zsh"
+source "${0:a:h}/providers/openai.zsh"
+source "${0:a:h}/providers/ollama.zsh"
 
 # ============================================================================
 # Ghost Text Display
@@ -70,13 +79,13 @@ _zsh_ai_cmd_update_ghost_on_edit() {
 }
 
 # ============================================================================
-# API Call (synchronous with spinner - runs in widget context)
+# API Call Dispatcher
 # ============================================================================
 
 _zsh_ai_cmd_call_api() {
   local input=$1
 
-  # Lazy OS detection (avoids sw_vers on every shell startup)
+  # Lazy OS detection
   if [[ -z $_ZSH_AI_CMD_OS ]]; then
     if [[ $OSTYPE == darwin* ]]; then
       _ZSH_AI_CMD_OS="macOS $(sw_vers -productVersion 2>/dev/null || print 'unknown')"
@@ -88,51 +97,12 @@ _zsh_ai_cmd_call_api() {
   local context="${(e)_ZSH_AI_CMD_CONTEXT}"
   local prompt="${_ZSH_AI_CMD_PROMPT}"$'\n'"${context}"
 
-  local schema='{
-    "type": "object",
-    "properties": {
-      "command": {"type": "string", "description": "The shell command"}
-    },
-    "required": ["command"],
-    "additionalProperties": false
-  }'
-
-  local payload
-  payload=$(command jq -nc \
-    --arg model "$ZSH_AI_CMD_MODEL" \
-    --arg system "$prompt" \
-    --arg content "$input" \
-    --argjson schema "$schema" \
-    '{
-      model: $model,
-      max_tokens: 256,
-      system: $system,
-      messages: [{role: "user", content: $content}],
-      output_format: {type: "json_schema", schema: $schema}
-    }')
-
-  local response
-  response=$(command curl -sS --max-time 30 "https://api.anthropic.com/v1/messages" \
-    -H "Content-Type: application/json" \
-    -H "x-api-key: $ANTHROPIC_API_KEY" \
-    -H "anthropic-version: 2023-06-01" \
-    -H "anthropic-beta: structured-outputs-2025-11-13" \
-    -d "$payload" 2>/dev/null)
-
-  # Debug log (full request/response for inspection)
-  if [[ $ZSH_AI_CMD_DEBUG == true ]]; then
-    {
-      print -- "=== $(date '+%Y-%m-%d %H:%M:%S') ==="
-      print -- "--- REQUEST ---"
-      command jq . <<< "$payload"
-      print -- "--- RESPONSE ---"
-      command jq . <<< "$response"
-      print ""
-    } >>$ZSH_AI_CMD_LOG
-  fi
-
-  # Extract command from structured output
-  print -r -- "$response" | command jq -re '.content[0].text | fromjson | .command // empty' 2>/dev/null
+  case $ZSH_AI_CMD_PROVIDER in
+    anthropic) _zsh_ai_cmd_anthropic_call "$input" "$prompt" ;;
+    openai)    _zsh_ai_cmd_openai_call "$input" "$prompt" ;;
+    ollama)    _zsh_ai_cmd_ollama_call "$input" "$prompt" ;;
+    *) print -u2 "zsh-ai-cmd: Unknown provider '$ZSH_AI_CMD_PROVIDER'"; return 1 ;;
+  esac
 }
 
 # ============================================================================
@@ -234,17 +204,26 @@ bindkey '^[[C' _zsh_ai_cmd_forward_char  # Right arrow - clear ghost, move curso
 # ============================================================================
 
 _zsh_ai_cmd_get_key() {
-  [[ -n $ANTHROPIC_API_KEY ]] && return 0
-  ANTHROPIC_API_KEY=$(security find-generic-password \
-    -s "anthropic-api-key" -a "$USER" -w 2>/dev/null) || {
-    print -u2 ""
-    print -u2 "zsh-ai-cmd: ANTHROPIC_API_KEY not found"
-    print -u2 ""
-    print -u2 "Set it via environment variable:"
-    print -u2 "  export ANTHROPIC_API_KEY='sk-ant-...'"
-    print -u2 ""
-    print -u2 "Or store in macOS Keychain:"
-    print -u2 "  security add-generic-password -s 'anthropic-api-key' -a '\$USER' -w 'sk-ant-...'"
-    return 1
-  }
+  local provider=$ZSH_AI_CMD_PROVIDER
+
+  # Ollama doesn't need a key
+  [[ $provider == ollama ]] && return 0
+
+  local key_var="${(U)provider}_API_KEY"
+  local keychain_name="${provider}-api-key"
+
+  # Check env var
+  [[ -n ${(P)key_var} ]] && return 0
+
+  # Try macOS Keychain
+  local key
+  key=$(security find-generic-password -s "$keychain_name" -a "$USER" -w 2>/dev/null)
+  if [[ -n $key ]]; then
+    typeset -g "$key_var"="$key"
+    return 0
+  fi
+
+  # Show provider-specific error
+  "_zsh_ai_cmd_${provider}_key_error"
+  return 1
 }
