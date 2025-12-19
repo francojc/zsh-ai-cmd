@@ -1,7 +1,7 @@
 # providers/ollama.zsh - Ollama local inference provider
 # No API key required, runs locally. No native JSON mode - uses prompt engineering.
 
-typeset -g ZSH_AI_CMD_OLLAMA_MODEL=${ZSH_AI_CMD_OLLAMA_MODEL:-'mistral'}
+typeset -g ZSH_AI_CMD_OLLAMA_MODEL=${ZSH_AI_CMD_OLLAMA_MODEL:-'mistral-small'}
 typeset -g ZSH_AI_CMD_OLLAMA_HOST=${ZSH_AI_CMD_OLLAMA_HOST:-'localhost:11434'}
 
 _zsh_ai_cmd_ollama_call() {

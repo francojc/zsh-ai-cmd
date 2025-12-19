@@ -1,7 +1,7 @@
 # providers/openai.zsh - OpenAI API provider
 # Uses JSON mode for structured output (less strict than Anthropic's schema)
 
-typeset -g ZSH_AI_CMD_OPENAI_MODEL=${ZSH_AI_CMD_OPENAI_MODEL:-'gpt-4o-mini'}
+typeset -g ZSH_AI_CMD_OPENAI_MODEL=${ZSH_AI_CMD_OPENAI_MODEL:-'gpt-5-mini'}
 
 _zsh_ai_cmd_openai_call() {
   local input=$1
