@@ -11,7 +11,7 @@ typeset -g ZSH_AI_CMD_PROVIDER=${ZSH_AI_CMD_PROVIDER:-'anthropic'}
 while [[ $# -gt 0 ]]; do
   case $1 in
     --provider|-p) ZSH_AI_CMD_PROVIDER=$2; shift 2 ;;
-    --help|-h) print "Usage: $0 [--provider anthropic|openai|ollama|deepseek|gemini]"; exit 0 ;;
+    --help|-h) print "Usage: $0 [--provider anthropic|openai|ollama|deepseek|gemini|copilot]"; exit 0 ;;
     *) print -u2 "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -35,13 +35,14 @@ source "${SCRIPT_DIR}/providers/openai.zsh"
 source "${SCRIPT_DIR}/providers/ollama.zsh"
 source "${SCRIPT_DIR}/providers/deepseek.zsh"
 source "${SCRIPT_DIR}/providers/gemini.zsh"
+source "${SCRIPT_DIR}/providers/copilot.zsh"
 
 # Get API key for current provider
 get_api_key() {
   local provider=$ZSH_AI_CMD_PROVIDER
 
-  # Ollama doesn't need a key
-  [[ $provider == ollama ]] && return 0
+  # Ollama and Copilot don't need a key
+  [[ $provider == ollama || $provider == copilot ]] && return 0
 
   local key_var="${(U)provider}_API_KEY"
   local keychain_name="${provider}-api-key"
