@@ -227,25 +227,24 @@ _zsh_ai_cmd_suggest() {
   local spinner='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
   local i=0
 
-  # Start API call in background (suppress job control noise)
-  local tmpfile="${TMPDIR:-/tmp}/zsh-ai-cmd.${$}.${RANDOM}"
-  setopt local_options no_notify no_monitor clobber
-  ( _zsh_ai_cmd_call_api "$BUFFER" > "$tmpfile" ) &!
+  # Start API call via anonymous pipe (no tmpfile, no path in any xtrace output)
+  setopt local_options no_notify no_monitor
+  local result_fd
+  exec {result_fd}< <(_zsh_ai_cmd_call_api "$BUFFER" 2>/dev/null)
   local pid=$!
 
   # Animate spinner while waiting
   while kill -0 $pid 2>/dev/null; do
     POSTDISPLAY=" ${spinner:$((i % 10)):1}"
     zle -R
-    read -t 0.1 -k 1 && { kill $pid 2>/dev/null; POSTDISPLAY=""; rm -f "$tmpfile"; return; }
+    read -t 0.1 -k 1 && { kill $pid 2>/dev/null; exec {result_fd}<&-; POSTDISPLAY=""; return; }
     ((i++))
   done
-  wait $pid 2>/dev/null
 
   # Read and sanitize result (security: strip control chars, newlines, escapes)
   local suggestion
-  suggestion=$(_zsh_ai_cmd_sanitize "$(<"$tmpfile")")
-  rm -f "$tmpfile"
+  suggestion=$(_zsh_ai_cmd_sanitize "$(command cat <&$result_fd)")
+  exec {result_fd}<&-
 
   if [[ -n $suggestion ]]; then
     _ZSH_AI_CMD_SUGGESTION=$suggestion
