@@ -228,7 +228,7 @@ _zsh_ai_cmd_suggest() {
   local i=0
 
   # Start API call in background (suppress job control noise)
-  local tmpfile=$(mktemp)
+  local tmpfile="${TMPDIR:-/tmp}/zsh-ai-cmd.${$}.${RANDOM}"
   setopt local_options no_notify no_monitor clobber
   ( _zsh_ai_cmd_call_api "$BUFFER" > "$tmpfile" ) &!
   local pid=$!
