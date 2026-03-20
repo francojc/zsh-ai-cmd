@@ -22,8 +22,16 @@ _zsh_ai_cmd_copilot_call() {
       ]
     }')
 
+  # Resolve base URL: support explicit protocol (e.g. https://host) or bare host:port
+  local base_url
+  if [[ $ZSH_AI_CMD_COPILOT_HOST == *://* ]]; then
+    base_url="${ZSH_AI_CMD_COPILOT_HOST%/}"
+  else
+    base_url="http://${ZSH_AI_CMD_COPILOT_HOST}"
+  fi
+
   local response
-  response=$(command curl -sS --max-time 30 "http://${ZSH_AI_CMD_COPILOT_HOST}/v1/chat/completions" \
+  response=$(command curl -sS --max-time 30 "${base_url}/v1/chat/completions" \
     -H "Content-Type: application/json" \
     -d "$payload" 2>/dev/null)
 
@@ -67,5 +75,11 @@ _zsh_ai_cmd_copilot_key_error() {
 
 # Check if copilot-api is available (used for validation)
 _zsh_ai_cmd_copilot_available() {
-  command curl -sS --max-time 2 "http://${ZSH_AI_CMD_COPILOT_HOST}/v1/models" >/dev/null 2>&1
+  local base_url
+  if [[ $ZSH_AI_CMD_COPILOT_HOST == *://* ]]; then
+    base_url="${ZSH_AI_CMD_COPILOT_HOST%/}"
+  else
+    base_url="http://${ZSH_AI_CMD_COPILOT_HOST}"
+  fi
+  command curl -sS --max-time 2 "${base_url}/v1/models" >/dev/null 2>&1
 }
